@@ -161,7 +161,7 @@ func fillHours(requestToken string, holidays map[time.Time]bool) {
 	for day := 1; day <= 31; day++ {
 		date_str := fmt.Sprintf("%s-%02d", current_month, day)
 		date, err := time.Parse("2006-01-02", date_str)
-		if err != nil {
+		if err != nil || date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 			fmt.Printf("Ignorando data inválida: %s", date)
 			continue
 		}
