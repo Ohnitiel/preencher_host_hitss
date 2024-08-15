@@ -40,7 +40,7 @@ func calculateEaster(year int) time.Time {
 }
 
 func CalendarForYear(year int) Calendar {
-	var calendar Calendar
+	calendar := make(Calendar)
 
 	current_year := time.Now().Year()
 	pascoa := calculateEaster(current_year)

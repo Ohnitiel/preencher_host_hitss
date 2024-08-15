@@ -4,54 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
-
-const listHeight = 10
-
-var (
-	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
-	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(4).Foreground(lipgloss.Color("170"))
-	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
-	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
-)
-
-type item string
-
-func (i item) FilterValue() string { return "" }
-
-type itemDelegate struct{}
-
-func (d itemDelegate) Height() int                             { return 1 }
-func (d itemDelegate) Spacing() int                            { return 0 }
-func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(item)
-	if !ok {
-		return
-	}
-
-	str := fmt.Sprintf("%d. %s", index+1, i)
-
-	fn := itemStyle.Render
-	if index == m.Index() {
-		fn = func(s ...string) string {
-			return selectedItemStyle.Render("> " + strings.Join(s, " "))
-		}
-	}
-
-	fmt.Fprint(w, fn(str))
-}
 
 type Activities struct {
 	Id_CapturaActividad string
@@ -152,63 +113,10 @@ func fillHours(requestToken string, calendar Calendar) {
 	}
 }
 
-type model struct {
-	list     list.Model
-	choice   string
-	quitting bool
-}
-
-func (m model) Init() tea.Cmd {
-	return nil
-}
-
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-
-	case tea.WindowSizeMsg:
-		m.list.SetWidth(msg.Width)
-		return m, nil
-
-	case tea.KeyMsg:
-
-		switch msg.String() {
-		case "ctrl+c", "q":
-			m.quitting = true
-			return m, tea.Quit
-
-		case "enter":
-			i, ok := m.list.SelectedItem().(item)
-			if ok {
-				m.choice = string(i)
-			}
-			return m, tea.Quit
-		}
-	}
-
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-	return m, cmd
-}
-
-func (m model) View() string {
-	if m.choice != "" {
-		if m.list.Index() == 0 {
-			return quitTextStyle.Render("Username password")
-		} else if m.list.Index() == 1 {
-			return quitTextStyle.Render("Token")
-		}
-	}
-	if m.quitting {
-		return quitTextStyle.Render("Exit")
-	}
-
-	return "\n" + m.list.View()
-}
-
-func main() {
+func initialModel() model {
 	items := []list.Item{
-		item("Login com usuário e senha"),
-		item("Login com token"),
+		item("Usuário e senha"),
+		item("Token"),
 	}
 
 	const defaultWidth = 20
@@ -220,8 +128,37 @@ func main() {
 	l.Styles.Title = titleStyle
 	l.Styles.HelpStyle = helpStyle
 
-	m := model{list: l}
+	m := model{
+		list:   l,
+		inputs: make([]textinput.Model, 2),
+	}
 
+	var t textinput.Model
+
+	for i := range m.inputs {
+		t = textinput.New()
+		t.Cursor.Style = cursorStyle
+		t.CharLimit = 255
+
+		switch i {
+		case 0:
+			t.Placeholder = "Username"
+			t.Focus()
+			t.PromptStyle = focusedStyle
+			t.TextStyle = focusedStyle
+		case 1:
+			t.Placeholder = "Password"
+			t.EchoMode = textinput.EchoPassword
+			t.EchoCharacter = -1
+		}
+
+		m.inputs[i] = t
+	}
+
+	return m
+}
+
+func main() {
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Algo deu errado: %v\n", err)
@@ -230,7 +167,6 @@ func main() {
 }
 
 func main2() {
-
 	cookie, err := login()
 	if err != nil {
 		fmt.Print(err)
