@@ -17,6 +17,7 @@ const (
 
 	progressPadding  = 2
 	progressMaxWidth = 80
+	textMaxWidth = 80
 )
 
 var (
@@ -74,6 +75,7 @@ type model struct {
 	cursorMode cursor.Mode
 
 	chosen   bool
+	finished bool
 	quitting bool
 }
 
@@ -81,7 +83,7 @@ func (m model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		k := msg.String()
 		if k == "esc" || k == "ctrl+c" {
@@ -93,7 +95,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.chosen {
 		return UpdateList(msg, m)
 	}
-	return UpdateInputs(msg, m)
+	if !m.finished {
+		return UpdateInputs(msg, m)
+	}
+
+	return m, nil
 }
 
 func (m model) View() string {
@@ -106,11 +112,15 @@ func (m model) View() string {
 	} else {
 		s = inputsView(m)
 	}
+	if len(m.inputs) == 1 {
+		s = fmt.Sprintf("Para obter a token, faca o login no site. Abra o modo de desenvolvedor, procure a aba \"Aplicativo\", na sessão \"Armazenamento\", Cookies e copie e cole aqui o valor do cookie __RequestVerificationToken\n\n%s\n\n", s)
+		s = Wordwrap(s, textMaxWidth)
+	}
 
-	return mainStyle.Render("\n" + s + "\n\n")
+	return mainStyle.Render(s)
 }
 
-func UpdateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+func UpdateList(msg tea.Msg, m *model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -128,8 +138,55 @@ func UpdateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			i, ok := m.list.SelectedItem().(item)
 			if ok {
 				m.choice = string(i)
+				m.chosen = true
+
+				if m.list.Index() == 0 {
+					m.inputs = make([]textinput.Model, 2)
+					var t textinput.Model
+
+					for i := range m.inputs {
+						t = textinput.New()
+						t.Cursor.Style = cursorStyle
+						t.CharLimit = 255
+
+						switch i {
+						case 0:
+							t.Placeholder = "Username"
+							t.Focus()
+							t.PromptStyle = focusedStyle
+							t.TextStyle = focusedStyle
+						case 1:
+							t.Placeholder = "Password"
+							t.EchoMode = textinput.EchoPassword
+							t.EchoCharacter = '*'
+						}
+
+						m.inputs[i] = t
+					}
+				} else if m.list.Index() == 1 {
+					m.inputs = make([]textinput.Model, 1)
+					var t textinput.Model
+
+					for i := range m.inputs {
+						t = textinput.New()
+						t.Cursor.Style = cursorStyle
+						t.CharLimit = 255
+
+						switch i {
+						case 0:
+							t.Placeholder = "Token"
+							t.Focus()
+							t.PromptStyle = focusedStyle
+							t.TextStyle = focusedStyle
+							t.EchoMode = textinput.EchoPassword
+							t.EchoCharacter = '*'
+						}
+
+						m.inputs[i] = t
+					}
+				}
 			}
-			return m, tea.Quit
+			return m, nil
 		}
 	}
 
@@ -148,7 +205,7 @@ func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func UpdateInputs(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+func UpdateInputs(msg tea.Msg, m *model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -197,13 +254,6 @@ func UpdateInputs(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 }
 
 func listView(m model) string {
-	if m.choice != "" {
-		if m.list.Index() == 0 {
-			return quitTextStyle.Render("Username password")
-		} else if m.list.Index() == 1 {
-			return quitTextStyle.Render("Token")
-		}
-	}
 	if m.quitting {
 		return quitTextStyle.Render("Exit")
 	}
