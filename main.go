@@ -5,14 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+const (
+	base_url   = "https://host.globalhitss.com"
+	login_url  = base_url + "/Security/Login"
+	cookie_url = base_url + "/Horas/CapturaHoras2"
+)
+
+var calendar = CalendarForYear(time.Now().Year())
 
 type Activities struct {
 	Id_CapturaActividad string
@@ -36,31 +42,63 @@ type FillData struct {
 	__RequestVerificationToken string
 }
 
-func login() (string, error) {
-	login_url := "https://host.globalhitss.com/"
-	response, err := http.PostForm(
-		login_url,
-		url.Values{
-			"UserName": {},
-			"Password": {},
-			"Language": {"pt"},
-			"bandera":  {"1"},
+func login(username string, password string) (string, error) {
+	var aspx string
+
+	body := []byte(fmt.Sprintf(
+		"UserName=%s&Password=%s&Language=pt&bandera=1", username, password,
+	))
+	payload := bytes.NewBuffer(body)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
 		},
-	)
+	}
+
+	req, err := http.NewRequest("POST", base_url, payload)
 	if err != nil {
-		fmt.Println("Erro ao realizar o login.")
-		fmt.Println(err.Error())
-		os.Exit(1)
+		fmt.Printf("Erro ao criar o POST. %e", err)
+		os.Exit(100)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	response, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Erro ao executar o login. %e", err)
+		os.Exit(200)
 	}
 
 	cookies := response.Cookies()
-	for _, cookie := range cookies {
-		if cookie.Name == "__RequestVerificationToken" {
-			return cookie.Value, nil
+	for _, c := range cookies {
+		if c.Name == ".ASPXAUTH" {
+			aspx = c.Value
 		}
 	}
 
-	return "", fmt.Errorf("Não foi possível encontrar o token")
+	req, err = http.NewRequest("GET", cookie_url, nil)
+	if err != nil {
+		fmt.Printf("Erro ao criar o POST. %e", err)
+		os.Exit(300)
+	}
+	req.Header.Add("Cookie", fmt.Sprintf(".ASPXAUTH=%s", aspx))
+	req.Header.Add("Cookie", "HOST=Cultura=pt&Auxiliar=")
+	req.Header.Add("Referer", login_url)
+
+	response, err = client.Do(req)
+	if err != nil {
+		fmt.Printf("Erro ao executar o login. %e", err)
+		os.Exit(400)
+	}
+
+	cookies = response.Cookies()
+	for _, c := range cookies {
+		if c.Name == "__RequestVerificationToken" {
+			return c.Value, nil
+		}
+	}
+
+	return "", fmt.Errorf("Cookie não encontrado.")
 }
 
 func fillHours(requestToken string, calendar Calendar) {
@@ -129,49 +167,33 @@ func initialModel() model {
 	l.Styles.HelpStyle = helpStyle
 
 	m := model{
-		list:   l,
-		inputs: make([]textinput.Model, 2),
-	}
-
-	var t textinput.Model
-
-	for i := range m.inputs {
-		t = textinput.New()
-		t.Cursor.Style = cursorStyle
-		t.CharLimit = 255
-
-		switch i {
-		case 0:
-			t.Placeholder = "Username"
-			t.Focus()
-			t.PromptStyle = focusedStyle
-			t.TextStyle = focusedStyle
-		case 1:
-			t.Placeholder = "Password"
-			t.EchoMode = textinput.EchoPassword
-			t.EchoCharacter = -1
-		}
-
-		m.inputs[i] = t
+		list:     l,
+		chosen:   false,
+		quitting: false,
 	}
 
 	return m
 }
 
 func main() {
-	p := tea.NewProgram(m)
+	m := initialModel()
+	p := tea.NewProgram(&m)
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Algo deu errado: %v\n", err)
 		os.Exit(1)
 	}
-}
 
-func main2() {
-	cookie, err := login()
-	if err != nil {
-		fmt.Print(err)
-		os.Exit(4)
+	if m.list.Index() == 0 {
+		if m.quitting {
+			os.Exit(0)
+		}
+		cookie, err := login(m.inputs[0].Value(), m.inputs[1].Value())
+		if err != nil {
+			fmt.Printf("Erro ao realizar o login: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Token:", cookie)
+	} else if m.list.Index() == 1 {
+		fmt.Println("v:", m.inputs[0].Value())
 	}
-
-	fillHours(cookie, CalendarForYear(time.Now().Year()))
 }
