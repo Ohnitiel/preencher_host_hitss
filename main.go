@@ -194,6 +194,6 @@ func main() {
 		}
 		fmt.Println("Token:", cookie)
 	} else if m.list.Index() == 1 {
-		fmt.Println("v:", m.inputs[0].Value())
+		fillHours(m.inputs[0].Value(), calendar)
 	}
 }
