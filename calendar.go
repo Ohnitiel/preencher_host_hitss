@@ -42,8 +42,7 @@ func calculateEaster(year int) time.Time {
 func CalendarForYear(year int) Calendar {
 	calendar := make(Calendar)
 
-	current_year := time.Now().Year()
-	pascoa := calculateEaster(current_year)
+	pascoa := calculateEaster(year)
 	carnival := pascoa.AddDate(0, 0, -47)
 	corpus_christi := pascoa.AddDate(0, 0, 60)
 
@@ -51,15 +50,15 @@ func CalendarForYear(year int) Calendar {
 		carnival:                 true,
 		corpus_christi:           true,
 		pascoa.AddDate(0, 0, -2): true, // Sexta-feira Santa
-		time.Date(current_year, time.January, 1, 0, 0, 0, 0, time.UTC):   true, // Ano Novo
-		time.Date(current_year, time.April, 21, 0, 0, 0, 0, time.UTC):    true, // Tiradentes
-		time.Date(current_year, time.May, 1, 0, 0, 0, 0, time.UTC):       true, // Dia do Trabalho
-		time.Date(current_year, time.September, 7, 0, 0, 0, 0, time.UTC): true, // Independência do Brasil
-		time.Date(current_year, time.October, 12, 0, 0, 0, 0, time.UTC):  true, // Nossa Senhora Aparecida
-		time.Date(current_year, time.November, 2, 0, 0, 0, 0, time.UTC):  true, // Finados
-		time.Date(current_year, time.November, 15, 0, 0, 0, 0, time.UTC): true, // Proclamação da República
-		time.Date(current_year, time.November, 21, 0, 0, 0, 0, time.UTC): true, // Consciência Negra
-		time.Date(current_year, time.December, 25, 0, 0, 0, 0, time.UTC): true, // Natal
+		time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC):   true, // Ano Novo
+		time.Date(year, time.April, 21, 0, 0, 0, 0, time.UTC):    true, // Tiradentes
+		time.Date(year, time.May, 1, 0, 0, 0, 0, time.UTC):       true, // Dia do Trabalho
+		time.Date(year, time.September, 7, 0, 0, 0, 0, time.UTC): true, // Independência do Brasil
+		time.Date(year, time.October, 12, 0, 0, 0, 0, time.UTC):  true, // Nossa Senhora Aparecida
+		time.Date(year, time.November, 2, 0, 0, 0, 0, time.UTC):  true, // Finados
+		time.Date(year, time.November, 15, 0, 0, 0, 0, time.UTC): true, // Proclamação da República
+		time.Date(year, time.November, 21, 0, 0, 0, 0, time.UTC): true, // Consciência Negra
+		time.Date(year, time.December, 25, 0, 0, 0, 0, time.UTC): true, // Natal
 	}
 
 	startDate := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
