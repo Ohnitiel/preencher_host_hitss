@@ -113,11 +113,12 @@ func (m model) View() string {
 		s = inputsView(m)
 	}
 	if len(m.inputs) == 1 {
-		s = fmt.Sprintf("Para obter a token, faca o login no site. Abra o modo de desenvolvedor, procure a aba \"Aplicativo\", na sessão \"Armazenamento\", Cookies e copie e cole aqui o valor do cookie __RequestVerificationToken\n\n%s\n\n", s)
-		s = Wordwrap(s, textMaxWidth)
+		prompt := fmt.Sprintf("Para obter a token, faca o login no site. Abra o modo de desenvolvedor, procure a aba \"Aplicativo\", na sessão \"Armazenamento\", Cookies e copie e cole aqui o valor do cookie __RequestVerificationToken")
+		prompt = Wordwrap(prompt, textMaxWidth)
+		s = fmt.Sprintf("%s\n\n%s", prompt, s)
 	}
 
-	return mainStyle.Render(s)
+	return mainStyle.Render("\n" + s + "\n\n")
 }
 
 func UpdateList(msg tea.Msg, m *model) (tea.Model, tea.Cmd) {
