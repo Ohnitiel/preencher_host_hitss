@@ -183,10 +183,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if m.quitting {
+		os.Exit(0)
+	}
+
 	if m.list.Index() == 0 {
-		if m.quitting {
-			os.Exit(0)
-		}
 		cookie, err := login(m.inputs[0].Value(), m.inputs[1].Value())
 		if err != nil {
 			fmt.Printf("Erro ao realizar o login: %v\n", err)
