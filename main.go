@@ -13,21 +13,35 @@ import (
 )
 
 const (
-	base_url   = "https://host.globalhitss.com"
-	login_url  = base_url + "/Security/Login"
-	cookie_url = base_url + "/Horas/CapturaHoras2"
+	base_url       = "https://host.globalhitss.com"
+	login_url      = base_url + "/Security/Login"
+	cookie_url     = base_url + "/Horas/CapturaHoras2"
+	activities_url = base_url + "/Horas/ActualizaActividades2"
+
+	projectId  = 73556
+	ResourceId = "50900135"
 )
 
 var calendar = CalendarForYear(time.Now().Year())
 
+// Http Request related
+var (
+	client = &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	aspx string
+)
+
 type Activities struct {
 	Id_CapturaActividad string
-	// Id_Actividad        string
-	HorasCapturadas string
-	Comentario      string
-	HorasExtras     bool
-	HorasNocturnas  bool
-	Bloqueada       bool
+	Id_Actividad        string
+	HorasCapturadas     string
+	Comentario          string
+	HorasExtras         bool
+	HorasNocturnas      bool
+	Bloqueada           bool
 }
 
 type FillData struct {
@@ -43,18 +57,10 @@ type FillData struct {
 }
 
 func login(username string, password string) (string, error) {
-	var aspx string
-
 	body := []byte(fmt.Sprintf(
 		"UserName=%s&Password=%s&Language=pt&bandera=1", username, password,
 	))
 	payload := bytes.NewBuffer(body)
-
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
 
 	req, err := http.NewRequest("POST", base_url, payload)
 	if err != nil {
@@ -103,21 +109,18 @@ func login(username string, password string) (string, error) {
 
 func fillHours(requestToken string, calendar Calendar) {
 	var data FillData
+
 	activities := make([]Activities, 1)
 
 	activities[0] = Activities{
 		Id_CapturaActividad: "0",
-		// Id_Actividad:        "973214",
-		HorasCapturadas: "8.0",
-		Comentario:      "t",
-		HorasExtras:     false,
-		HorasNocturnas:  false,
-		Bloqueada:       false,
+		Id_Actividad:        "973217",
+		HorasCapturadas:     "8.0",
+		Comentario:          "",
+		HorasExtras:         false,
+		HorasNocturnas:      false,
+		Bloqueada:           false,
 	}
-
-	url := "https://host.globalhitss.com/Horas/ActualizaActividades2"
-	projectId := 73556
-	ResourceId := "50900135"
 
 	current_time := time.Now()
 	startDate := time.Date(current_time.Year(), current_time.Month(), 1, 0, 0, 0, 0, time.UTC)
@@ -140,14 +143,26 @@ func fillHours(requestToken string, calendar Calendar) {
 			__RequestVerificationToken: requestToken,
 		}
 
-		payload, _ := json.Marshal(data)
+		json_data, _ := json.Marshal(data)
+		payload := bytes.NewBuffer(json_data)
 
-		_, err := http.Post(url, "application/json",
-			bytes.NewBuffer(payload))
+		req, err := http.NewRequest("POST", activities_url, payload)
+		if err != nil {
+			fmt.Printf("Erro ao criar o POST. %e", err)
+			os.Exit(300)
+		}
+		req.Header.Add("Cookie", fmt.Sprintf(".ASPXAUTH=%s", aspx))
+		req.Header.Add("Cookie", "HOST=Cultura=pt&Auxiliar=")
+		req.Header.Add("Cookie", fmt.Sprintf("__RequestVerificationToken=%s", requestToken))
+		req.Header.Add("Referer", login_url)
+
+		response, err := client.Do(req)
 		if err != nil {
 			fmt.Printf("Erro ao enviar os dados, dia %s: %s\n",
 				d.Format("2006-01-02"), err.Error())
 		}
+		fmt.Println(data, response.StatusCode)
+		break
 	}
 }
 
@@ -193,7 +208,7 @@ func main() {
 			fmt.Printf("Erro ao realizar o login: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("Token:", cookie)
+		fillHours(cookie, calendar)
 	} else if m.list.Index() == 1 {
 		fillHours(m.inputs[0].Value(), calendar)
 	}
