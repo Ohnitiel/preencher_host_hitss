@@ -113,7 +113,7 @@ func (m model) View() string {
 		s = inputsView(m)
 	}
 	if len(m.inputs) == 1 {
-		prompt := fmt.Sprintf("Para obter a token, faca o login no site. Abra o modo de desenvolvedor, procure a aba \"Aplicativo\", na sessão \"Armazenamento\", Cookies e copie e cole aqui o valor do cookie __RequestVerificationToken")
+		prompt := fmt.Sprintf("Para obter a token, faca o login no site. Abra o modo de desenvolvedor, procure a aba \"Aplicativo\", na sessão \"Armazenamento\", Cookies e copie e cole aqui o valor dos cookies __RequestVerificationToken e .ASPXAUTH")
 		prompt = Wordwrap(prompt, textMaxWidth)
 		s = fmt.Sprintf("%s\n\n%s", prompt, s)
 	}
@@ -165,7 +165,7 @@ func UpdateList(msg tea.Msg, m *model) (tea.Model, tea.Cmd) {
 						m.inputs[i] = t
 					}
 				} else if m.list.Index() == 1 {
-					m.inputs = make([]textinput.Model, 1)
+					m.inputs = make([]textinput.Model, 3)
 					var t textinput.Model
 
 					for i := range m.inputs {
@@ -175,7 +175,23 @@ func UpdateList(msg tea.Msg, m *model) (tea.Model, tea.Cmd) {
 
 						switch i {
 						case 0:
-							t.Placeholder = "Token"
+							t.Placeholder = "Header Request Verification Token"
+							t.Focus()
+							t.PromptStyle = focusedStyle
+							t.TextStyle = focusedStyle
+							t.EchoMode = textinput.EchoPassword
+							t.EchoCharacter = '*'
+
+						case 1:
+							t.Placeholder = "Form Request Verification Token"
+							t.Focus()
+							t.PromptStyle = focusedStyle
+							t.TextStyle = focusedStyle
+							t.EchoMode = textinput.EchoPassword
+							t.EchoCharacter = '*'
+
+						case 2:
+							t.Placeholder = ".ASPXAUTH"
 							t.Focus()
 							t.PromptStyle = focusedStyle
 							t.TextStyle = focusedStyle

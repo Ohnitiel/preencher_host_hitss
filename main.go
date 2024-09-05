@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -56,7 +58,9 @@ type FillData struct {
 	__RequestVerificationToken string
 }
 
-func login(username string, password string) (string, error) {
+func login(username string, password string) (string, string, error) {
+	re := regexp.MustCompile(`__RequestVerificationToken".*?value="(.*?)"`)
+
 	body := []byte(fmt.Sprintf(
 		"UserName=%s&Password=%s&Language=pt&bandera=1", username, password,
 	))
@@ -97,17 +101,26 @@ func login(username string, password string) (string, error) {
 		os.Exit(400)
 	}
 
+	text, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	token := re.FindSubmatch(text)
+
+        if err != nil {
+                fmt.Printf("Erro ao ler o body. %e", err)
+                os.Exit(500)
+        }
+
 	cookies = response.Cookies()
 	for _, c := range cookies {
 		if c.Name == "__RequestVerificationToken" {
-			return c.Value, nil
+			return c.Value, string(token[1]), nil
 		}
 	}
 
-	return "", fmt.Errorf("Cookie não encontrado.")
+	return "", "", fmt.Errorf("Cookie não encontrado.")
 }
 
-func fillHours(requestToken string, calendar Calendar) {
+func fillHours(headerRequestToken string, requestToken string, calendar Calendar) {
 	var data FillData
 
 	activities := make([]Activities, 1)
@@ -151,17 +164,19 @@ func fillHours(requestToken string, calendar Calendar) {
 			fmt.Printf("Erro ao criar o POST. %e", err)
 			os.Exit(300)
 		}
+		req.Header.Add("Content-Type", "application/json; charset=UTF-8")
+		req.Header.Add("__RequestVerificationToken",  headerRequestToken)
 		req.Header.Add("Cookie", fmt.Sprintf(".ASPXAUTH=%s", aspx))
 		req.Header.Add("Cookie", "HOST=Cultura=pt&Auxiliar=")
-		req.Header.Add("Cookie", fmt.Sprintf("__RequestVerificationToken=%s", requestToken))
-		req.Header.Add("Referer", login_url)
+		req.Header.Add("Cookie", fmt.Sprintf("__RequestVerificationToken=%s", headerRequestToken))
+		req.Header.Add("Referer", cookie_url)
 
 		response, err := client.Do(req)
 		if err != nil {
 			fmt.Printf("Erro ao enviar os dados, dia %s: %s\n",
 				d.Format("2006-01-02"), err.Error())
 		}
-		fmt.Println(data, response.StatusCode)
+		fmt.Println(data, headerRequestToken, response.StatusCode)
 		break
 	}
 }
@@ -203,13 +218,14 @@ func main() {
 	}
 
 	if m.list.Index() == 0 {
-		cookie, err := login(m.inputs[0].Value(), m.inputs[1].Value())
+		cookie, token, err := login(m.inputs[0].Value(), m.inputs[1].Value())
 		if err != nil {
 			fmt.Printf("Erro ao realizar o login: %v\n", err)
 			os.Exit(1)
 		}
-		fillHours(cookie, calendar)
+		fillHours(cookie, token, calendar)
 	} else if m.list.Index() == 1 {
-		fillHours(m.inputs[0].Value(), calendar)
+		aspx = m.inputs[1].Value()
+		fillHours(m.inputs[0].Value(), m.inputs[1].Value(), calendar)
 	}
 }
