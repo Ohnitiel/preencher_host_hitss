@@ -13,11 +13,8 @@ import (
 )
 
 const (
-	listHeight = 15
-
-	progressPadding  = 2
-	progressMaxWidth = 80
-	textMaxWidth     = 80
+	listHeight   = 15
+	textMaxWidth = 80
 )
 
 var (

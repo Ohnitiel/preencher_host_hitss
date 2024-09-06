@@ -191,6 +191,14 @@ func main() {
 		progress: progress.New(progress.WithDefaultGradient()),
 	}
 
+	p = tea.NewProgram(progress)
+
 	go pw.Start(cookie, token, calendar, startDate, endDate)
+
+	if _, err := p.Run(); err != nil {
+		fmt.Println("error running program:", err)
+		os.Exit(1)
+	}
+
 	os.Exit(0)
 }

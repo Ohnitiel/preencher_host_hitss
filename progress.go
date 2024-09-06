@@ -11,13 +11,21 @@ import (
 
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-var p *tea.Program
+var (
+	p *tea.Program
+
+	progressHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#353535"))
+	progressPadding   = 2
+	progressMaxWidth  = 100
+)
 
 type progressWriter struct {
 	total      float64
 	current    float64
+	currentDay string
 	onProgress func(float64)
 }
 
@@ -43,6 +51,7 @@ func (pw *progressWriter) Start(
 		if !calendar[d] {
 			continue
 		}
+		pw.currentDay = d.Format("02/01/2006")
 
 		data = FillData{
 			Id_Proyecto:              projectId,
@@ -72,8 +81,6 @@ func (pw *progressWriter) Start(
 		req.Header.Add("cookie", fmt.Sprintf("__RequestVerificationToken=%s;", headerRequestToken))
 		req.Header.Add("cookie", fmt.Sprintf(".ASPXAUTH=%s", aspx))
 
-		fmt.Println("Gravando dados para o dia: ", d.Format("02/01/2006"))
-
 		response, err := client.Do(req)
 		if err != nil {
 			fmt.Printf("Erro ao enviar os dados, dia %s: %s\n",
@@ -86,10 +93,16 @@ func (pw *progressWriter) Start(
 				d.Format("02/01/2006"), response.StatusCode)
 		}
 
-		fmt.Println("Dados gravados com sucesso!", "Dia: ", d.Format("02/01/2006"))
+		pw.onProgress(float64(d.Sub(startDate).Hours() / 24 / pw.total))
 	}
 
-	fmt.Println("Preenchimento concluído!")
+	pw.onProgress(float64(1))
+}
+
+func finalPause() tea.Cmd {
+	return tea.Tick(time.Millisecond*500, func(time.Time) tea.Msg {
+		return nil
+	})
 }
 
 type progressMsg float64
@@ -106,8 +119,9 @@ func (m progressModel) Init() tea.Cmd {
 func (m progressModel) View() string {
 	pad := strings.Repeat(" ", progressPadding)
 	return "\n" +
+		pad + "Preenchendo dia: " + m.pw.currentDay + "\n\n" +
 		pad + m.progress.View() + "\n\n" +
-		pad + helpStyle.Render("Press ctrl+c to quit")
+		pad + progressHelpStyle.Render("Press ctrl+c to quit")
 }
 
 func (m progressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -128,7 +142,7 @@ func (m progressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmds []tea.Cmd
 
 		if msg >= 1.0 {
-			cmds = append(cmds, tea.Quit)
+			cmds = append(cmds, tea.Sequence(finalPause(), tea.Quit))
 		}
 
 		cmds = append(cmds, m.progress.SetPercent(float64(msg)))
@@ -138,6 +152,9 @@ func (m progressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		progressModel, cmd := m.progress.Update(msg)
 		m.progress = progressModel.(progress.Model)
 		return m, cmd
+
+	default:
+		return m, nil
 	}
 	return m, nil
 }
