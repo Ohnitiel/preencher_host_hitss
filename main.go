@@ -37,25 +37,25 @@ var (
 )
 
 type Activities struct {
-	Id_CapturaActividad string
-	Id_Actividad        string
-	HorasCapturadas     string
-	Comentario          string
-	HorasExtras         bool
-	HorasNocturnas      bool
-	Bloqueada           bool
+	Id_CapturaActividad string `json:"Id_CapturaActividad"`
+	Id_Actividad        string `json:"Id_Actividad"`
+	HorasCapturadas     string `json:"HorasCapturadas"`
+	Comentario          string `json:"Comentario"`
+	HorasExtras         bool   `json:"HorasExtras"`
+	HorasNocturnas      bool   `json:"HorasNocturnas"`
+	Bloqueada           bool   `json:"Bloqueada"`
 }
 
 type FillData struct {
-	Id_Proyecto                int
-	Id_Recurso                 string
-	FechaDia                   string
-	Comentario                 string
-	Actividades                []Activities
-	pantallaCaptura            bool
-	Latitude                   float64
-	Longitude                  float64
-	__RequestVerificationToken string
+	Id_Proyecto              int          `json:"Id_Proyecto"`
+	Id_Recurso               string       `json:"Id_Recurso"`
+	FechaDia                 string       `json:"FechaDia"`
+	Comentario               string       `json:"Comentario"`
+	Actividades              []Activities `json:"Actividades"`
+	PantallaCaptura          bool         `json:"pantallaCaptura"`
+	Latitude                 float64      `json:"Latitude"`
+	Longitude                float64      `json:"Longitude"`
+	RequestVerificationToken string       `json:"__RequestVerificationToken"`
 }
 
 func login(username string, password string) (string, string, error) {
@@ -102,13 +102,12 @@ func login(username string, password string) (string, string, error) {
 	}
 
 	text, err := io.ReadAll(response.Body)
+	if err != nil {
+		fmt.Printf("Erro ao ler o body. %e", err)
+		os.Exit(500)
+	}
 	response.Body.Close()
 	token := re.FindSubmatch(text)
-
-        if err != nil {
-                fmt.Printf("Erro ao ler o body. %e", err)
-                os.Exit(500)
-        }
 
 	cookies = response.Cookies()
 	for _, c := range cookies {
@@ -145,46 +144,49 @@ func fillHours(headerRequestToken string, requestToken string, calendar Calendar
 		}
 
 		data = FillData{
-			Id_Proyecto:                projectId,
-			Id_Recurso:                 ResourceId,
-			FechaDia:                   d.Format("2006-01-02"),
-			Comentario:                 "",
-			Actividades:                activities,
-			pantallaCaptura:            true,
-			Latitude:                   0,
-			Longitude:                  0,
-			__RequestVerificationToken: requestToken,
+			Id_Proyecto:              projectId,
+			Id_Recurso:               ResourceId,
+			FechaDia:                 d.Format("2006-01-02"),
+			Comentario:               "",
+			Actividades:              activities,
+			PantallaCaptura:          true,
+			Latitude:                 0,
+			Longitude:                0,
+			RequestVerificationToken: requestToken,
 		}
 
 		json_data, _ := json.Marshal(data)
-		payload := bytes.NewBuffer(json_data)
+		payload := bytes.NewBuffer([]byte(json_data))
 
 		req, err := http.NewRequest("POST", activities_url, payload)
 		if err != nil {
 			fmt.Printf("Erro ao criar o POST. %e", err)
 			os.Exit(300)
 		}
-		req.Header.Add("Content-Type", "application/json; charset=UTF-8")
-		req.Header.Add("__RequestVerificationToken",  headerRequestToken)
-		req.Header.Add("Cookie", fmt.Sprintf(".ASPXAUTH=%s", aspx))
-		req.Header.Add("Cookie", "HOST=Cultura=pt&Auxiliar=")
-		req.Header.Add("Cookie", fmt.Sprintf("__RequestVerificationToken=%s", headerRequestToken))
-		req.Header.Add("Referer", cookie_url)
+
+		req.Header.Add("__requestverificationtoken", requestToken)
+		req.Header.Add("content-type", "application/json; charset=UTF-8")
+		req.Header.Add("cookie", "HOST=Cultura=pt&Auxiliar=;")
+		req.Header.Add("cookie", fmt.Sprintf("__RequestVerificationToken=%s;", headerRequestToken))
+		req.Header.Add("cookie", fmt.Sprintf(".ASPXAUTH=%s", aspx))
 
 		response, err := client.Do(req)
 		if err != nil {
 			fmt.Printf("Erro ao enviar os dados, dia %s: %s\n",
 				d.Format("2006-01-02"), err.Error())
 		}
-		fmt.Println(data, headerRequestToken, response.StatusCode)
-		break
+
+		if response.StatusCode != 200 {
+			fmt.Printf("Falha ao enviar os dados, dia %s. Status: %d\n",
+				d.Format("01/02/2006"), response.StatusCode)
+		}
 	}
 }
 
 func initialModel() model {
 	items := []list.Item{
 		item("Usuário e senha"),
-		item("Token"),
+		// item("Token"),
 	}
 
 	const defaultWidth = 20
@@ -225,7 +227,7 @@ func main() {
 		}
 		fillHours(cookie, token, calendar)
 	} else if m.list.Index() == 1 {
-		aspx = m.inputs[1].Value()
+		aspx = m.inputs[2].Value()
 		fillHours(m.inputs[0].Value(), m.inputs[1].Value(), calendar)
 	}
 }
