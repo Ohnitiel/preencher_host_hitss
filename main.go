@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -68,15 +68,20 @@ func login(username string, password string) (string, string, error) {
 
 	req, err := http.NewRequest("POST", base_url, payload)
 	if err != nil {
-		fmt.Printf("Erro ao criar o POST. %e", err)
-		os.Exit(100)
+		fmt.Printf("Erro ao criar request para url: %s.\nErro: %e",
+			base_url, err)
+		os.Exit(3)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	response, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("Erro ao executar o login. %e", err)
-		os.Exit(200)
+		os.Exit(5)
+	}
+	if response.StatusCode != 302 {
+		fmt.Printf("Falha na autenticação. Status: %d\n", response.StatusCode)
+		os.Exit(401)
 	}
 
 	cookies := response.Cookies()
@@ -88,8 +93,9 @@ func login(username string, password string) (string, string, error) {
 
 	req, err = http.NewRequest("GET", cookie_url, nil)
 	if err != nil {
-		fmt.Printf("Erro ao criar o POST. %e", err)
-		os.Exit(300)
+		fmt.Printf("Erro ao criar request para url: %s.\nErro: %e",
+			cookie_url, err)
+		os.Exit(3)
 	}
 	req.Header.Add("Cookie", fmt.Sprintf(".ASPXAUTH=%s", aspx))
 	req.Header.Add("Cookie", "HOST=Cultura=pt&Auxiliar=")
@@ -97,14 +103,14 @@ func login(username string, password string) (string, string, error) {
 
 	response, err = client.Do(req)
 	if err != nil {
-		fmt.Printf("Erro ao executar o login. %e", err)
-		os.Exit(400)
+		fmt.Printf("Erro ao coletar cookie. %e", err)
+		os.Exit(5)
 	}
 
 	text, err := io.ReadAll(response.Body)
 	if err != nil {
-		fmt.Printf("Erro ao ler o body. %e", err)
-		os.Exit(500)
+		fmt.Printf("Erro ao ler a resposta. %e", err)
+		os.Exit(7)
 	}
 	response.Body.Close()
 	token := re.FindSubmatch(text)
@@ -112,75 +118,12 @@ func login(username string, password string) (string, string, error) {
 	cookies = response.Cookies()
 	for _, c := range cookies {
 		if c.Name == "__RequestVerificationToken" {
+			fmt.Println("Login efetuado com sucesso!", "Usuário: ", username)
 			return c.Value, string(token[1]), nil
 		}
 	}
 
 	return "", "", fmt.Errorf("Cookie não encontrado.")
-}
-
-func fillHours(headerRequestToken string, requestToken string, calendar Calendar) {
-	var data FillData
-
-	activities := make([]Activities, 1)
-
-	activities[0] = Activities{
-		Id_CapturaActividad: "0",
-		Id_Actividad:        "973217",
-		HorasCapturadas:     "8.0",
-		Comentario:          "",
-		HorasExtras:         false,
-		HorasNocturnas:      false,
-		Bloqueada:           false,
-	}
-
-	current_time := time.Now()
-	startDate := time.Date(current_time.Year(), current_time.Month(), 1, 0, 0, 0, 0, time.UTC)
-	endDate := startDate.AddDate(0, 1, -1)
-
-	for d := startDate; d.After(endDate) == false; d = d.AddDate(0, 0, 1) {
-		if !calendar[d] {
-			continue
-		}
-
-		data = FillData{
-			Id_Proyecto:              projectId,
-			Id_Recurso:               ResourceId,
-			FechaDia:                 d.Format("2006-01-02"),
-			Comentario:               "",
-			Actividades:              activities,
-			PantallaCaptura:          true,
-			Latitude:                 0,
-			Longitude:                0,
-			RequestVerificationToken: requestToken,
-		}
-
-		json_data, _ := json.Marshal(data)
-		payload := bytes.NewBuffer([]byte(json_data))
-
-		req, err := http.NewRequest("POST", activities_url, payload)
-		if err != nil {
-			fmt.Printf("Erro ao criar o POST. %e", err)
-			os.Exit(300)
-		}
-
-		req.Header.Add("__requestverificationtoken", requestToken)
-		req.Header.Add("content-type", "application/json; charset=UTF-8")
-		req.Header.Add("cookie", "HOST=Cultura=pt&Auxiliar=;")
-		req.Header.Add("cookie", fmt.Sprintf("__RequestVerificationToken=%s;", headerRequestToken))
-		req.Header.Add("cookie", fmt.Sprintf(".ASPXAUTH=%s", aspx))
-
-		response, err := client.Do(req)
-		if err != nil {
-			fmt.Printf("Erro ao enviar os dados, dia %s: %s\n",
-				d.Format("2006-01-02"), err.Error())
-		}
-
-		if response.StatusCode != 200 {
-			fmt.Printf("Falha ao enviar os dados, dia %s. Status: %d\n",
-				d.Format("01/02/2006"), response.StatusCode)
-		}
-	}
 }
 
 func initialModel() model {
@@ -208,6 +151,9 @@ func initialModel() model {
 }
 
 func main() {
+	var cookie, token string
+	var err error
+
 	m := initialModel()
 	p := tea.NewProgram(&m)
 	if _, err := p.Run(); err != nil {
@@ -220,14 +166,31 @@ func main() {
 	}
 
 	if m.list.Index() == 0 {
-		cookie, token, err := login(m.inputs[0].Value(), m.inputs[1].Value())
+		cookie, token, err = login(m.inputs[0].Value(), m.inputs[1].Value())
 		if err != nil {
 			fmt.Printf("Erro ao realizar o login: %v\n", err)
 			os.Exit(1)
 		}
-		fillHours(cookie, token, calendar)
 	} else if m.list.Index() == 1 {
-		aspx = m.inputs[2].Value()
-		fillHours(m.inputs[0].Value(), m.inputs[1].Value(), calendar)
+		cookie, token, aspx = m.inputs[0].Value(), m.inputs[1].Value(), m.inputs[2].Value()
 	}
+
+	current_time := time.Now()
+	startDate := time.Date(current_time.Year(), current_time.Month(), 1, 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 1, -1)
+
+	pw := &progressWriter{
+		total: endDate.Sub(startDate).Hours() / 24,
+		onProgress: func(ratio float64) {
+			p.Send(progressMsg(ratio))
+		},
+	}
+
+	progress := progressModel{
+		pw:       pw,
+		progress: progress.New(progress.WithDefaultGradient()),
+	}
+
+	go pw.Start(cookie, token, calendar, startDate, endDate)
+	os.Exit(0)
 }

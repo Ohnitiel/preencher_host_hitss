@@ -17,7 +17,7 @@ const (
 
 	progressPadding  = 2
 	progressMaxWidth = 80
-	textMaxWidth = 80
+	textMaxWidth     = 80
 )
 
 var (
